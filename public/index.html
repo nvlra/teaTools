@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>TeaTools</title>
+        <!-- Primary Meta Tags -->
+        <meta name="title" content="TeaTools - Tea Testnet">
+        <meta name="description" content="Explore Tea Testnet - Decentralized innovation starts here!">
+
+        <link rel="icon" type="image/png" href="assets/favicon.png">
+        <link rel="shortcut icon" type="image/png" href="assets/favicon.png">
+
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap">
+        <link rel="stylesheet" href="styles.css">
+        <!-- Script untuk Web3 dan Ethers -->
+        <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+    </head>
+<body>
+    <!-- Navigation -->
+    <div class="nav-wrapper">
+        <div class="flex-row-bcc">
+            <div class="logo-section">
+                <img src="assets/tealogo.svg" alt="Tea Logo" class="tea-logo">
+                <div class="social-links">
+                    <a href="https://discord.com/users/1094201919876124753" target="_blank" class="social-link">
+                        <img src="assets/discord.png" alt="Discord" class="social-icon">
+                    </a>
+                    <a href="https://t.me/gladionz" target="_blank" class="social-link">
+                        <img src="assets/tele.png" alt="Telegram" class="social-icon">
+                    </a>
+                </div>
+            </div>
+            <button class="connect-btn">Connect</button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Landing Page -->
+        <section id="landing-page" class="rectangle active">
+            <div class="content-wrapper">
+                <h1 class="tea-tools">TeaTools</h1>
+                <p class="subtitle">
+                    Experience Seamless Crypto Transactions with TeaTools on the Assam-Tea Network!
+                </p>
+
+                <h2 class="select-menu">Select Menu</h2>
+                
+                <div class="menu-container">
+                    <button class="menu-item batch-btn" data-page="batch-transfer">
+                        Batch Transfer ( Multi-sending Token )
+                    </button>
+                    <button class="menu-item speed-btn" data-page="speed-up">
+                        Speed Up Transaction Pending
+                    </button>
+                    <a href="https://faucet-assam.tea.xyz" target="_blank" class="menu-item faucet-btn">
+                        Claim Faucet $TEA TOKEN
+                    </a>
+                </div>
+
+                <div class="domain-section">
+                    <h3 class="claim-title">
+                        Claim Your <span class="assam">.assam</span> Domain
+                    </h3>
+                    <a href="https://assam-domain.vercel.app/" target="_blank" class="claim-now-btn">
+                        CLAIM NOW
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Batch Transfer Page -->
+        <section id="batch-transfer" class="rectangle">
+            <div class="page-header">
+                <a href="#" class="back-menu" data-page="landing-page">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    <span>Back to Menu</span>
+                </a>
+                <h1 class="page-title">Batch Transfer</h1>
+                <p class="page-subtitle">One Click, Multiple Transfers!</p>
+            </div>
+
+            <div class="form-container">
+                <div class="form-group">
+                    <label>Token Address :</label>
+                    <input type="text" id="tokenAddress" placeholder="Input your token address">
+                </div>
+
+                <div class="form-group">
+                    <label>Amount To send :</label>
+                    <input type="number" id="sendAmount" placeholder="input amount you want send / 1 address">
+                </div>
+
+                <div class="form-group">
+                    <label>Address List :</label>
+                    <textarea id="addressList" placeholder="Input your address list here&#10;&#10;ex:&#10;0x0000000000000000&#10;0x0000000000000001&#10;0x0000000000000002"></textarea>
+                    
+                    <div class="upload-section">
+                        <input type="file" id="fileInput" accept=".txt" hidden>
+                        <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                            Upload File
+                        </button>
+                        <span class="upload-hint">*upload file address format .txt</span>
+                    </div>
+                </div>
+
+                <button class="check-btn" id="checkTransfer">Check Transfer Details</button>
+            </div>
+        </section>
+
+        <!-- Speed Up Transaction Page -->
+        <section id="speed-up" class="rectangle">
+            <div class="page-header">
+                <a href="#" class="back-menu" data-page="landing-page">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    <span>Back to Menu</span>
+                </a>
+                <h1 class="page-title">Speed Up Transaction</h1>
+                <p class="page-subtitle">Boost Your Pending Transactions!</p>
+            </div>
+        
+            <div class="form-container">
+                <div class="form-group">
+                    <label>Transaction Hash :</label>
+                    <input type="text" class="tx-hash-input" id="txHash" placeholder="Input transaction hash">
+                </div>
+                
+                <button class="speed-up-btn" id="speedUpProcess">Process Now</button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <p>This website was created by @gladionz.</p>
+    </footer>
+
+    <!-- Modal Overlay -->
+    <div class="modal-overlay"></div>
+
+    <!-- Batch Transfer Result Modal -->
+    <div class="modal check-result-modal">
+        <div class="modal-card">
+            <div class="modal-content">
+                <h3>Transfer Details</h3>
+                <div class="result-content">
+                    <!-- Content will be injected here -->
+                </div>
+                <div class="modal-actions">
+                    <button class="process-btn" id="processTransfer" disabled>Process Now</button>
+                    <button class="close-modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Speed Up Transaction Modal -->
+    <div class="modal pending-tx-modal">
+        <div class="modal-card">
+            <div class="modal-content">
+                <h3>Pending Transactions</h3>
+                <div class="pending-content">
+                    <!-- Content will be injected here -->
+                </div>
+                <div class="modal-actions">
+                    <button id="speedUpBtn" class="speed-up-btn" disabled>Speed Up Now</button>
+                    <button class="close-modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div class="modal transaction-success">
+        <div class="modal-card">
+            <div class="modal-content">
+                <div class="success-icon">✓</div>
+                <h3>Transaction Successful!</h3>
+                <p class="transaction-details"></p>
+                <div class="modal-actions">
+                    <button class="close-modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>
