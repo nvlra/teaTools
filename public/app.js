@@ -7,7 +7,7 @@ let toastTimeout;
 
 const CONTRACT_ADDRESS = "0xCA31A477d9B0b2951217222cd8aF068ae268D73a";
 const DONATION_CONTRACT = "0x7f1F28fa2b7CE04b6C94A040a34ae8d50A5d35d1";
-const CREATOR_CONTRACT = "0x957f6f2194706b2b49800fde60d3ddb83f84462b";
+const CREATOR_CONTRACT = "0x5c2Ca96e9c61005b15f96b6b87244112747Ab7A7";
 const CHAIN_ID = 93384;
 const RPC_URL = "https://assam-rpc.tea.xyz";
 
@@ -185,12 +185,12 @@ const CREATOR_ABI = [
         "inputs": [
             {
                 "internalType": "string",
-                "name": "name",
+                "name": "tokenName",
                 "type": "string"
             },
             {
                 "internalType": "string",
-                "name": "symbol",
+                "name": "tokenSymbol",
                 "type": "string"
             },
             {
@@ -199,7 +199,7 @@ const CREATOR_ABI = [
                 "type": "uint256"
             }
         ],
-        "name": "deployToken",
+        "name": "createToken",
         "outputs": [
             {
                 "internalType": "address",
@@ -234,8 +234,14 @@ const CREATOR_ABI = [
             {
                 "indexed": false,
                 "internalType": "uint256",
-                "name": "totalSupply",
+                "name": "supply",
                 "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "owner",
+                "type": "address"
             }
         ],
         "name": "TokenCreated",
@@ -1038,11 +1044,6 @@ async function createToken() {
     try {
         setLoading(createBtn, true);
 
-        // Debug log
-        console.log('Connected wallet:', connectedWallet);
-        const balance = await provider.getBalance(connectedWallet);
-        console.log('Wallet balance:', ethers.utils.formatEther(balance), 'TEA');
-
         // Input validation
         if (!name || name.trim() === '') {
             showToast('Please enter token name', 'error');
@@ -1053,61 +1054,44 @@ async function createToken() {
             return;
         }
         if (!supply || isNaN(supply) || parseFloat(supply) <= 0) {
-            showToast('Please enter a valid supply amount', 'error');
+            showToast('Please enter valid supply amount', 'error');
             return;
         }
 
+        // Use supply directly without decimal conversion
+        const initialSupply = supply;
+
+        // Initialize contract
         const creatorContract = new ethers.Contract(
             CREATOR_CONTRACT,
             CREATOR_ABI,
             signer
         );
 
-        // Debug log contract
-        console.log('Creator contract address:', CREATOR_CONTRACT);
-        
-        // Convert supply to BigNumber with 18 decimals
-        const initialSupply = ethers.utils.parseUnits(supply.toString(), 18);
-        console.log('Initial supply (in wei):', initialSupply.toString());
+        showToast('Processing token creation...', 'info');
 
-        // Set higher gas price
-        const gasPrice = await provider.getGasPrice();
-        const adjustedGasPrice = gasPrice.mul(150).div(100); // Add 50%
-        console.log('Adjusted gas price:', ethers.utils.formatUnits(adjustedGasPrice, 'gwei'), 'gwei');
-
-        // Set high gas limit for deployment
-        const gasLimit = 5000000; // Set fixed high gas limit
-        console.log('Gas limit:', gasLimit);
-
-        console.log('Deploying token with params:', {
-            name: name.trim(),
-            symbol: symbol.trim().toUpperCase(),
-            supply: initialSupply.toString(),
-            gasLimit: gasLimit,
-            gasPrice: adjustedGasPrice.toString()
-        });
-
-        // Deploy token with prepared parameters
-        const tx = await creatorContract.deployToken(
+        // Send transaction
+        const tx = await creatorContract.createToken(
             name.trim(),
             symbol.trim().toUpperCase(),
             initialSupply,
             {
-                gasLimit: gasLimit,
-                gasPrice: adjustedGasPrice
+                gasLimit: 5000000
             }
         );
 
-        console.log('Transaction hash:', tx.hash);
         showToast('Waiting for confirmation...', 'info');
         
         const receipt = await tx.wait();
-        console.log('Transaction receipt:', receipt);
 
-        // Get token address from event
+        // Get token information from event
         const tokenCreatedEvent = receipt.events?.find(e => e.event === "TokenCreated");
-        const tokenAddress = tokenCreatedEvent?.args?.tokenAddress;
-        console.log('New token address:', tokenAddress);
+        if (!tokenCreatedEvent) {
+            throw new Error('Token creation event not found in transaction receipt');
+        }
+
+        const tokenAddress = tokenCreatedEvent.args.tokenAddress;
+        const tokenOwner = tokenCreatedEvent.args.owner;
 
         // Show success modal
         const successModal = document.querySelector('.transaction-success');
@@ -1120,12 +1104,17 @@ async function createToken() {
                 <div>Total Supply: ${supply} ${symbol}</div>
                 <div>Token Address: ${tokenAddress}</div>
                 <div class="tx-hash">
-                    <a href="https://explorer-tea-assam-fo46m5b966.t.conduit.xyz/tx/${tx.hash}" 
-                       target="_blank" 
-                       rel="noopener noreferrer" 
-                       class="tx-hash-link">
-                        View on Explorer
+                    <a href="https://explorer-tea-assam-fo46m5b966.t.conduit.xyz/token/${tokenAddress}" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    class="tx-hash-link">
+                        View Token on Explorer
                     </a>
+                </div>
+                <div class="add-token">
+                    <button onclick="addTokenToMetaMask('${tokenAddress}', '${symbol}', '18')">
+                        Add to MetaMask
+                    </button>
                 </div>
             </div>
             <div class="modal-actions">
@@ -1142,13 +1131,7 @@ async function createToken() {
         document.getElementById('tokenSupply').value = '';
 
     } catch (error) {
-        console.error('Detailed error:', {
-            code: error.code,
-            message: error.message,
-            stack: error.stack,
-            data: error.data
-        });
-        
+        console.error('Error detail:', error);
         if (error.code === 4001) {
             showToast('Transaction rejected by user', 'error');
         } else if (error.message.includes('insufficient funds')) {
@@ -1158,6 +1141,25 @@ async function createToken() {
         }
     } finally {
         setLoading(createBtn, false);
+    }
+}
+
+async function addTokenToMetaMask(tokenAddress, symbol, decimals) {
+    try {
+        await ethereum.request({
+            method: 'wallet_watchAsset',
+            params: {
+                type: 'ERC20',
+                options: {
+                    address: tokenAddress,
+                    symbol: symbol,
+                    decimals: decimals,
+                },
+            },
+        });
+        showToast('Token successfully added to MetaMask', 'success');
+    } catch (error) {
+        showToast('Failed to add token to MetaMask', 'error');
     }
 }
 

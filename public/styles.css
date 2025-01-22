@@ -441,6 +441,33 @@ input:focus, textarea:focus {
     pointer-events: none;
 }
 
+.add-token {
+    margin-top: 1rem;
+}
+
+.add-token button {
+    width: 100%;
+    background: var(--primary-green);
+    color: var(--background);
+    border: none;
+    border-radius: 6px;
+    padding: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 1rem;
+    font-family: var(--font-main);
+}
+
+.add-token button:hover {
+    background: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+.add-token button:active {
+    transform: translateY(0);
+}
+
 /* Modal Actions */
 .modal-actions {
     display: flex;
@@ -642,6 +669,11 @@ footer p {
     
     .tea-logo {
         height: 24px;
+    }
+    
+    .add-token button {
+        padding: 0.6rem;
+        font-size: 0.9rem;
     }
     
     .social-icon {
