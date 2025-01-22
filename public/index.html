@@ -55,6 +55,12 @@
                     <button class="menu-item speed-btn" data-page="speed-up">
                         Speed Up Transaction Pending
                     </button>
+                    <button class="menu-item creator-btn" data-page="token-creator">
+                        Token Creator
+                    </button>
+                    <button class="menu-item donation-btn" data-page="tea-donation">
+                        Tea Donation
+                    </button>
                     <a href="https://faucet-assam.tea.xyz" target="_blank" class="menu-item faucet-btn">
                         Claim Faucet $TEA TOKEN
                     </a>
@@ -70,7 +76,6 @@
                 </div>
             </div>
         </section>
-
         <!-- Batch Transfer Page -->
         <section id="batch-transfer" class="rectangle">
             <div class="page-header">
@@ -80,7 +85,7 @@
                     </svg>
                     <span>Back to Menu</span>
                 </a>
-                <h1 class="page-title">Batch Transfer</h1>
+                <h1 class="page-title">BatchTransfer</h1>
                 <p class="page-subtitle">One Click, Multiple Transfers!</p>
             </div>
 
@@ -121,10 +126,10 @@
                     </svg>
                     <span>Back to Menu</span>
                 </a>
-                <h1 class="page-title">Speed Up Transaction</h1>
+                <h1 class="page-title">SpeedUpTransaction</h1>
                 <p class="page-subtitle">Boost Your Pending Transactions!</p>
             </div>
-        
+
             <div class="form-container">
                 <div class="form-group">
                     <label>Transaction Hash :</label>
@@ -134,8 +139,59 @@
                 <button class="speed-up-btn" id="speedUpProcess">Process Now</button>
             </div>
         </section>
-    </div>
+        <!-- Tea Donation Page -->
+        <section id="tea-donation" class="rectangle">
+            <div class="page-header">
+                <a href="#" class="back-menu" data-page="landing-page">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    <span>Back to Menu</span>
+                </a>
+                <h1 class="page-title">TeaDonation</h1>
+                <p class="page-subtitle">Buy me some tea</p>
+            </div>
 
+            <div class="form-container">
+                <div class="form-group">
+                    <label>Amount :</label>
+                    <input type="number" id="donationAmount" class="tea-input" placeholder="Enter amount in $TEA">
+                </div>
+                <button class="check-btn" id="processDonation">Donate</button>
+            </div>
+        </section>
+
+        <!-- Token Creator Page -->
+        <section id="token-creator" class="rectangle">
+            <div class="page-header">
+                <a href="#" class="back-menu" data-page="landing-page">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    <span>Back to Menu</span>
+                </a>
+                <h1 class="page-title">TokenCreator</h1>
+                <p class="page-subtitle">Simple for mint your own token</p>
+            </div>
+
+            <div class="form-container">
+                <div class="form-group">
+                    <label>Token Name :</label>
+                    <input type="text" id="tokenName" class="token-input" placeholder="Enter token name">
+                </div>
+                <div class="form-group">
+                    <label>Token Symbol :</label>
+                    <input type="text" id="tokenSymbol" class="token-input" placeholder="Enter token symbol">
+                </div>
+                <div class="form-group">
+                    <label>Supply Token :</label>
+                    <input type="number" id="tokenSupply" class="token-input" placeholder="Enter total supply">
+                </div>
+                <button class="check-btn" id="createToken">Create Token</button>
+            </div>
+        </section>
+    </div>
+    
     <!-- Footer -->
     <footer>
         <p>This website was created by @gladionz.</p>
@@ -193,6 +249,7 @@
     <!-- Toast Container -->
     <div class="toast-container"></div>
 
+    <script src="abi.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

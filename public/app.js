@@ -6,23 +6,26 @@ let connectedWallet;
 let toastTimeout;
 
 const CONTRACT_ADDRESS = "0xCA31A477d9B0b2951217222cd8aF068ae268D73a";
+const DONATION_CONTRACT = "0x7f1F28fa2b7CE04b6C94A040a34ae8d50A5d35d1";
+const CREATOR_CONTRACT = "0x957f6f2194706b2b49800fde60d3ddb83f84462b";
 const CHAIN_ID = 93384;
 const RPC_URL = "https://assam-rpc.tea.xyz";
 
 // Pastikan ethers dan Web3 tersedia
 if (typeof window.ethereum !== 'undefined') {
-    console.log('Ethereum object detected'); // Debug log
+    console.log('Ethereum object detected');
     try {
         web3 = new Web3(window.ethereum);
         provider = new ethers.providers.Web3Provider(window.ethereum);
-        console.log('Web3 initialized successfully'); // Debug log
+        console.log('Web3 initialized successfully');
     } catch (error) {
-        console.error('Error initializing Web3:', error); // Debug log
+        console.error('Error initializing Web3:', error);
     }
 } else {
-    console.log('Ethereum object not found'); // Debug log
+    console.log('Ethereum object not found');
 }
 
+// Contract ABIs
 const CONTRACT_ABI = [
     {
         "inputs": [
@@ -88,9 +91,160 @@ const ERC20_ABI = [
     }
 ];
 
+const DONATION_ABI = [
+    {
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "DonationForwarded",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "donor",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "DonationReceived",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address payable",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "setOwner",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"stateMutability": "payable",
+		"type": "receive"
+	},
+	{
+		"inputs": [],
+		"name": "getBalance",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address payable",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	}
+];
+
+const CREATOR_ABI = [
+    {
+        "inputs": [
+            {
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+            },
+            {
+                "internalType": "string",
+                "name": "symbol",
+                "type": "string"
+            },
+            {
+                "internalType": "uint256",
+                "name": "initialSupply",
+                "type": "uint256"
+            }
+        ],
+        "name": "deployToken",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": false,
+                "internalType": "address",
+                "name": "tokenAddress",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "string",
+                "name": "name",
+                "type": "string"
+            },
+            {
+                "indexed": false,
+                "internalType": "string",
+                "name": "symbol",
+                "type": "string"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "totalSupply",
+                "type": "uint256"
+            }
+        ],
+        "name": "TokenCreated",
+        "type": "event"
+    }
+];
+
 // Utility Functions
 function showToast(message, type = 'info') {
-    // Clear existing timeout if there is one
     if (toastTimeout) {
         clearTimeout(toastTimeout);
     }
@@ -109,13 +263,13 @@ function showToast(message, type = 'info') {
     const container = document.querySelector('.toast-container') || createToastContainer();
     container.appendChild(toast);
     
-    // Set new timeout
     toastTimeout = setTimeout(() => {
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
 
+// Modal and UI Functions
 function createToastContainer() {
     const container = document.createElement('div');
     container.className = 'toast-container';
@@ -130,10 +284,8 @@ function showModal(modal, content = '') {
         modal.querySelector('.result-content, .pending-content, .modal-content').innerHTML = content;
     }
     
-    // Add event listeners for close buttons
     const closeButtons = modal.querySelectorAll('.close-modal');
     closeButtons.forEach(button => {
-        // Remove existing listeners first to prevent duplicates
         button.replaceWith(button.cloneNode(true));
         const newButton = modal.querySelector('.close-modal');
         newButton.addEventListener('click', () => {
@@ -143,41 +295,6 @@ function showModal(modal, content = '') {
     
     modal.classList.add('active');
     overlay.classList.add('active');
-}
-
-function showSuccessModal(tx) {
-    const successModal = document.querySelector('.transaction-success');
-    const explorerUrl = 'https://explorer-tea-assam-fo46m5b966.t.conduit.xyz/tx/';
-    
-    const details = `
-        <div class="success-icon">✓</div>
-        <h3>Transaction Successful!</h3>
-        <div class="transaction-details">
-            <div>Transaction Hash:</div>
-            <div class="tx-hash">
-                <a href="${explorerUrl}${tx.hash}" 
-                   target="_blank" 
-                   rel="noopener noreferrer" 
-                   class="tx-hash-link">
-                    ${tx.hash}
-                </a>
-            </div>
-        </div>
-    `;
-    
-    successModal.querySelector('.modal-content').innerHTML = details;
-    showModal(successModal);
-}
-
-function setProcessButtonLoading(isLoading) {
-    const processBtn = document.querySelector('.process-btn');
-    if (isLoading) {
-        processBtn.disabled = true;
-        processBtn.classList.add('loading');
-    } else {
-        processBtn.disabled = false;
-        processBtn.classList.remove('loading');
-    }
 }
 
 function hideModal(modal) {
@@ -196,32 +313,49 @@ function setLoading(element, isLoading) {
     }
 }
 
-// Wallet Connection
+// Navigation Functions
+function initializeNavigation() {
+    document.querySelectorAll('[data-page]').forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            const targetPage = button.getAttribute('data-page');
+            if (targetPage) navigateToPage(targetPage);
+        });
+    });
+}
+
+function navigateToPage(pageId) {
+    document.querySelectorAll('.rectangle').forEach(page => {
+        page.classList.remove('active');
+    });
+    
+    const targetPage = document.getElementById(pageId);
+    if (targetPage) {
+        targetPage.classList.add('active');
+        window.scrollTo(0, 0);
+    }
+}
+
+// Wallet Functions
 async function connectWallet() {
-    console.log('connectWallet function called'); // Debug log
+    console.log('connectWallet function called');
     try {
         if (typeof window.ethereum === 'undefined') {
-            console.log('MetaMask not found'); // Debug log
+            console.log('MetaMask not found');
             showToast('Please install MetaMask first', 'error');
             return false;
         }
 
-        console.log('Requesting accounts...'); // Debug log
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-        console.log('Accounts:', accounts); // Debug log
-
         const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-        console.log('Current chainId:', chainId); // Debug log
 
         if (parseInt(chainId, 16) !== CHAIN_ID) {
             try {
-                console.log('Switching network...'); // Debug log
                 await window.ethereum.request({
                     method: 'wallet_switchEthereumChain',
                     params: [{ chainId: '0x' + CHAIN_ID.toString(16) }],
                 });
             } catch (switchError) {
-                console.log('Switch error:', switchError); // Debug log
                 if (switchError.code === 4902) {
                     try {
                         await window.ethereum.request({
@@ -254,8 +388,6 @@ async function connectWallet() {
         provider = new ethers.providers.Web3Provider(window.ethereum);
         signer = provider.getSigner();
 
-        console.log('Wallet connected:', connectedWallet);
-        
         await updateWalletInfo();
         showToast('Wallet connected successfully', 'success');
         return true;
@@ -311,7 +443,6 @@ async function updateWalletInfo() {
     }
 }
 
-// Add disconnect function
 async function disconnectWallet() {
     try {
         // Clear any stored wallet info
@@ -339,201 +470,7 @@ async function disconnectWallet() {
     }
 }
 
-// Event Listeners
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM Content Loaded'); // Debug log
-    
-    // Initialize Navigation
-    initializeNavigation();
-    
-    // Connect wallet button
-    const connectBtn = document.querySelector('.connect-btn');
-    if (connectBtn) {
-        console.log('Connect button found'); // Debug log
-        connectBtn.addEventListener('click', async () => {
-            console.log('Connect button clicked'); // Debug log
-            await connectWallet();
-        });
-    } else {
-        console.error('Connect button not found!'); // Debug log
-    }
-    
-    // Add event listeners
-    const fileInput = document.getElementById('fileInput');
-    if (fileInput) {
-        fileInput.addEventListener('change', handleFileUpload);
-    }
-    
-    // Add other button listeners
-    const buttons = {
-        'checkTransfer': checkToken,
-        'processTransfer': processBatchTransfer,
-        'speedUpProcess': speedUpByTxHash  // Update ini
-    };
-
-    for (const [id, handler] of Object.entries(buttons)) {
-        const button = document.getElementById(id);
-        if (button) {
-            button.addEventListener('click', handler);
-        }
-    }
-    
-    // Modal close buttons
-    document.querySelectorAll('.close-modal').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const modal = btn.closest('.modal');
-            hideModal(modal);
-        });
-    });
-    
-    // Modal overlay click
-    const modalOverlay = document.querySelector('.modal-overlay');
-    if (modalOverlay) {
-        modalOverlay.addEventListener('click', () => {
-            document.querySelectorAll('.modal.active').forEach(modal => {
-                hideModal(modal);
-            });
-        });
-    }
-});
-
-// Check if already connected
-if (window.ethereum?.selectedAddress) {
-    connectWallet();
-}
-
-// Listen for account changes
-if (window.ethereum) {
-    ethereum.on('accountsChanged', async (accounts) => {
-        if (accounts.length > 0) {
-            connectedWallet = accounts[0];
-            await updateWalletInfo();
-        } else {
-            location.reload();
-        }
-    });
-
-    ethereum.on('chainChanged', () => {
-        location.reload();
-    });
-
-    ethereum.on('disconnect', () => {
-        localStorage.removeItem('lastConnectedWallet');
-        location.reload();
-    });
-}
-
-// Navigation Functions
-function initializeNavigation() {
-    document.querySelectorAll('[data-page]').forEach(button => {
-        button.addEventListener('click', (e) => {
-            e.preventDefault();
-            const targetPage = button.getAttribute('data-page');
-            if (targetPage) navigateToPage(targetPage);
-        });
-    });
-}
-
-function navigateToPage(pageId) {
-    document.querySelectorAll('.rectangle').forEach(page => {
-        page.classList.remove('active');
-    });
-    
-    const targetPage = document.getElementById(pageId);
-    if (targetPage) {
-        targetPage.classList.add('active');
-        window.scrollTo(0, 0);
-    }
-}
-
-// Batch Transfer Functions
-async function checkToken() {
-    if (!connectedWallet) {
-        showToast('Please connect wallet first', 'error');
-        return;
-    }
-
-    const tokenAddress = document.getElementById('tokenAddress').value;
-    const amount = document.getElementById('sendAmount').value;
-    const addresses = document.getElementById('addressList').value
-        .split('\n')
-        .map(addr => addr.trim())
-        .filter(addr => ethers.utils.isAddress(addr));
-    
-    const modal = document.querySelector('.check-result-modal');
-    const processBtn = modal.querySelector('.process-btn');
-    
-    if (!ethers.utils.isAddress(tokenAddress)) {
-        showToast('Please enter a valid token address', 'error');
-        return;
-    }
-
-    try {
-        showModal(modal, `
-            <div class="checking-animation">
-                <div class="dot"></div>
-                <div class="dot"></div>
-                <div class="dot"></div>
-            </div>
-        `);
-
-        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
-        const [symbol, decimals, name] = await Promise.all([
-            tokenContract.symbol(),
-            tokenContract.decimals(),
-            tokenContract.name()
-        ]);
-
-        const totalAmount = amount * addresses.length;
-        
-        const content = `
-            <h3>Transfer Details</h3>
-            <div class="result-content">
-                <div class="token-info">
-                    <h4>${name} (${symbol})</h4>
-                    <p class="decimals">Decimals: ${decimals}</p>
-                </div>
-                <div class="transfer-details">
-                    <p>Amount per address: ${amount} ${symbol}</p>
-                    <p>Total addresses: ${addresses.length}</p>
-                    <p class="total">Total amount to send: ${totalAmount} ${symbol}</p>
-                </div>
-            </div>
-            <div class="modal-actions">
-                <button class="process-btn" id="processTransfer">Process Now</button>
-                <button class="close-modal">Cancel</button>
-            </div>
-        `;
-        
-        modal.querySelector('.modal-content').innerHTML = content;
-        
-        // Re-add event listeners
-        const newProcessBtn = modal.querySelector('.process-btn');
-        newProcessBtn.addEventListener('click', processBatchTransfer);
-        
-        const closeBtn = modal.querySelector('.close-modal');
-        closeBtn.addEventListener('click', () => hideModal(modal));
-        
-        // Enable/disable process button
-        newProcessBtn.disabled = addresses.length === 0 || !amount;
-
-    } catch (error) {
-        console.error('Error checking token:', error);
-        const errorContent = `
-            <h3>Transfer Details</h3>
-            <div class="error-message">
-                <p>Error loading token information</p>
-                <p class="details">Please verify the token address and try again</p>
-            </div>
-            <div class="modal-actions">
-                <button class="close-modal">Close</button>
-            </div>
-        `;
-        modal.querySelector('.modal-content').innerHTML = errorContent;
-    }
-}
-
-// Helper function untuk menghitung gas price berdasarkan network condition
+// Transaction Functions
 async function getOptimalGasPrice() {
     try {
         // Get current gas price dan pending transactions count
@@ -566,7 +503,6 @@ async function getOptimalGasPrice() {
     }
 }
 
-// Helper function untuk mendapatkan safe nonce
 async function getSafeNonce() {
     try {
         const [latestNonce, pendingNonce] = await Promise.all([
@@ -754,66 +690,25 @@ async function processBatchTransfer() {
         hideModal(document.querySelector('.check-result-modal'));
     }
  }
- 
- // Transaction monitoring function
- function monitorTransaction(txHash) {
-    const checkStatus = async () => {
-        try {
-            const tx = await provider.getTransaction(txHash);
-            if (tx && tx.blockNumber) {
-                // Transaction confirmed
-                hideModal(document.querySelector('.check-result-modal'));
-                const receipt = await tx.wait();
-                showSuccessModal(tx);
-                return;
-            }
-            // Check again after 2 seconds
-            setTimeout(checkStatus, 2000);
-        } catch (error) {
-            console.error('Error monitoring transaction:', error);
-        }
-    };
-    checkStatus();
- }
 
-// File Upload Handler
-async function handleFileUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    try {
-        const text = await file.text();
-        const addresses = text.split('\n')
-            .map(addr => addr.trim())
-            .filter(addr => addr && ethers.utils.isAddress(addr));
-            
-        if (addresses.length === 0) {
-            showToast('No valid addresses found in file', 'error');
-            return;
-        }
-        
-        document.getElementById('addressList').value = addresses.join('\n');
-        showToast(`Loaded ${addresses.length} addresses successfully`, 'success');
-        
-    } catch (error) {
-        console.error('Error reading file:', error);
-        showToast('Error reading file', 'error');
-    }
-}
-
-// Speed Up Transaction Functions
-async function checkPendingTransactions() {
+ async function checkToken() {
     if (!connectedWallet) {
         showToast('Please connect wallet first', 'error');
         return;
     }
 
-    const address = document.getElementById('userAddress').value;
-    const modal = document.querySelector('.pending-tx-modal');
-    const speedUpBtn = modal.querySelector('.speed-up-btn');
+    const tokenAddress = document.getElementById('tokenAddress').value;
+    const amount = document.getElementById('sendAmount').value;
+    const addresses = document.getElementById('addressList').value
+        .split('\n')
+        .map(addr => addr.trim())
+        .filter(addr => ethers.utils.isAddress(addr));
     
-    if (!ethers.utils.isAddress(address)) {
-        showToast('Please enter a valid address', 'error');
+    const modal = document.querySelector('.check-result-modal');
+    const processBtn = modal.querySelector('.process-btn');
+    
+    if (!ethers.utils.isAddress(tokenAddress)) {
+        showToast('Please enter a valid token address', 'error');
         return;
     }
 
@@ -826,90 +721,61 @@ async function checkPendingTransactions() {
             </div>
         `);
 
-        // Get the latest nonce (completed transactions)
-        const latestNonce = await provider.getTransactionCount(address, 'latest');
-        // Get the pending nonce
-        const pendingNonce = await provider.getTransactionCount(address, 'pending');
+        const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, provider);
+        const [symbol, decimals, name] = await Promise.all([
+            tokenContract.symbol(),
+            tokenContract.decimals(),
+            tokenContract.name()
+        ]);
 
-        // If pendingNonce > latestNonce, there are pending transactions
-        const hasPendingTx = pendingNonce > latestNonce;
-
-        // Get the last few blocks to check for pending transactions
-        const blockNumber = await provider.getBlockNumber();
-        const block = await provider.getBlock(blockNumber);
-        const pendingTxs = [];
-
-        // Check mempool for pending transactions
-        const txPool = await provider.send('eth_getBlockByNumber', ['pending', true]);
-        if (txPool && txPool.transactions) {
-            const addressPendingTxs = txPool.transactions.filter(tx => 
-                tx.from.toLowerCase() === address.toLowerCase()
-            );
-            pendingTxs.push(...addressPendingTxs);
-        }
-
-        let content;
-        if (pendingTxs.length > 0) {
-            content = `
-                <div class="address-info">
-                    <span class="address">${address}</span>
+        const totalAmount = amount * addresses.length;
+        
+        const content = `
+            <h3>Transfer Details</h3>
+            <div class="result-content">
+                <div class="token-info">
+                    <h4>${name} (${symbol})</h4>
+                    <p class="decimals">Decimals: ${decimals}</p>
                 </div>
-                <div class="pending-list">
-                    ${pendingTxs.map(tx => `
-                        <div class="pending-tx-item">
-                            <p class="tx-hash">Hash: ${tx.hash}</p>
-                            <p class="tx-value">Value: ${ethers.utils.formatEther(tx.value)} TEA</p>
-                            <p class="tx-fee">Gas Price: ${ethers.utils.formatUnits(tx.gasPrice, 'gwei')} Gwei</p>
-                            <p class="tx-nonce">Nonce: ${tx.nonce}</p>
-                        </div>
-                    `).join('')}
+                <div class="transfer-details">
+                    <p>Amount per address: ${amount} ${symbol}</p>
+                    <p>Total addresses: ${addresses.length}</p>
+                    <p class="total">Total amount to send: ${totalAmount} ${symbol}</p>
                 </div>
-            `;
-            speedUpBtn.disabled = false;
-        } else {
-            content = `
-                <div class="status-message">
-                    No pending transactions found for this address
-                </div>
-            `;
-            speedUpBtn.disabled = true;
-        }
-
-        showModal(modal, content);
-
-    } catch (error) {
-        console.error('Error checking transactions:', error);
-        const errorContent = `
-            <div class="error-message">
-                <p>Error checking transactions</p>
-                <p class="details">Please try again later</p>
+            </div>
+            <div class="modal-actions">
+                <button class="process-btn" id="processTransfer">Process Now</button>
+                <button class="close-modal">Cancel</button>
             </div>
         `;
-        showModal(modal, errorContent);
-        speedUpBtn.disabled = true;
+        
+        modal.querySelector('.modal-content').innerHTML = content;
+        
+        // Re-add event listeners
+        const newProcessBtn = modal.querySelector('.process-btn');
+        newProcessBtn.addEventListener('click', processBatchTransfer);
+        
+        const closeBtn = modal.querySelector('.close-modal');
+        closeBtn.addEventListener('click', () => hideModal(modal));
+        
+        // Enable/disable process button
+        newProcessBtn.disabled = addresses.length === 0 || !amount;
+
+    } catch (error) {
+        console.error('Error checking token:', error);
+        const errorContent = `
+            <h3>Transfer Details</h3>
+            <div class="error-message">
+                <p>Error loading token information</p>
+                <p class="details">Please verify the token address and try again</p>
+            </div>
+            <div class="modal-actions">
+                <button class="close-modal">Close</button>
+            </div>
+        `;
+        modal.querySelector('.modal-content').innerHTML = errorContent;
     }
 }
-
-// Function to speed up transaction
-// Fungsi untuk menangani error dengan lebih detail
-function handleTransactionError(error) {
-    console.error('Transaction error:', error);
-    
-    // Penanganan error spesifik
-    if (error.code === -32603) {
-        showToast('Network is congested. Please try again later.', 'error');
-    } else if (error.code === 4001) {
-        showToast('Transaction rejected by user', 'error');
-    } else if (error.message && error.message.includes('insufficient funds')) {
-        showToast('Insufficient funds for gas fee', 'error');
-    } else if (error.message && error.message.includes('nonce')) {
-        showToast('Transaction nonce error. Please refresh and try again', 'error');
-    } else {
-        showToast(error.message || 'Transaction failed. Please try again', 'error');
-    }
-}
-
-// Update fungsi speedUpByTxHash dengan penanganan error yang lebih baik
 async function speedUpByTxHash() {
     if (!connectedWallet) {
         showToast('Please connect wallet first', 'error');
@@ -1051,36 +917,274 @@ async function speedUpByTxHash() {
     }
  }
 
+// File Upload Handler
+async function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    try {
+        const text = await file.text();
+        const addresses = text.split('\n')
+            .map(addr => addr.trim())
+            .filter(addr => addr && ethers.utils.isAddress(addr));
+            
+        if (addresses.length === 0) {
+            showToast('No valid addresses found in file', 'error');
+            return;
+        }
+        
+        document.getElementById('addressList').value = addresses.join('\n');
+        showToast(`Loaded ${addresses.length} addresses successfully`, 'success');
+        
+    } catch (error) {
+        console.error('Error reading file:', error);
+        showToast('Error reading file', 'error');
+    }
+}
+
+async function processDonation() {
+    if (!connectedWallet) {
+        showToast('Please connect wallet first', 'error');
+        return;
+    }
+
+    const donateBtn = document.getElementById('processDonation');
+    const amount = document.getElementById('donationAmount').value;
+    
+    try {
+        // Set loading state
+        setLoading(donateBtn, true);
+        
+        if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
+            showToast('Please enter a valid amount', 'error');
+            return;
+        }
+
+        const donationAmount = ethers.utils.parseEther(amount.toString());
+        
+        // Check balance
+        const balance = await provider.getBalance(connectedWallet);
+        if (balance.lt(donationAmount)) {
+            showToast('Insufficient TEA balance', 'error');
+            return;
+        }
+
+        // Get optimal gas price
+        const gasPrice = await getOptimalGasPrice();
+        
+        // Send donation transaction
+        showToast('Processing donation...', 'info');
+        const tx = await signer.sendTransaction({
+            to: DONATION_CONTRACT,
+            value: donationAmount,
+            gasLimit: 100000,
+            gasPrice: gasPrice
+        });
+
+        showToast('Waiting for confirmation...', 'info');
+        await tx.wait();
+
+        // Update balance after successful transaction
+        await updateWalletInfo();
+
+        // Show success modal
+        const successModal = document.querySelector('.transaction-success');
+        const details = `
+            <div class="success-icon">✓</div>
+            <h3>Donation Successful!</h3>
+            <div class="transaction-details">
+                <div>Amount: ${amount} TEA</div>
+                <div class="tx-hash">
+                    <a href="https://explorer-tea-assam-fo46m5b966.t.conduit.xyz/tx/${tx.hash}" 
+                       target="_blank" 
+                       rel="noopener noreferrer" 
+                       class="tx-hash-link">
+                        ${tx.hash}
+                    </a>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="close-modal">Close</button>
+            </div>
+        `;
+        
+        successModal.querySelector('.modal-content').innerHTML = details;
+        showModal(successModal);
+
+        // Reset form
+        document.getElementById('donationAmount').value = '';
+
+    } catch (error) {
+        console.error('Error in donation:', error);
+        handleError(error, 'donation');
+    } finally {
+        // Reset loading state
+        setLoading(donateBtn, false);
+    }
+}
+
+// Tambahkan fungsi untuk token creator
+async function createToken() {
+    if (!connectedWallet) {
+        showToast('Please connect your wallet first', 'error');
+        return;
+    }
+
+    const createBtn = document.getElementById('createToken');
+    const name = document.getElementById('tokenName').value;
+    const symbol = document.getElementById('tokenSymbol').value;
+    const supply = document.getElementById('tokenSupply').value;
+
+    try {
+        setLoading(createBtn, true);
+
+        // Debug log
+        console.log('Connected wallet:', connectedWallet);
+        const balance = await provider.getBalance(connectedWallet);
+        console.log('Wallet balance:', ethers.utils.formatEther(balance), 'TEA');
+
+        // Input validation
+        if (!name || name.trim() === '') {
+            showToast('Please enter token name', 'error');
+            return;
+        }
+        if (!symbol || symbol.trim() === '') {
+            showToast('Please enter token symbol', 'error');
+            return;
+        }
+        if (!supply || isNaN(supply) || parseFloat(supply) <= 0) {
+            showToast('Please enter a valid supply amount', 'error');
+            return;
+        }
+
+        const creatorContract = new ethers.Contract(
+            CREATOR_CONTRACT,
+            CREATOR_ABI,
+            signer
+        );
+
+        // Debug log contract
+        console.log('Creator contract address:', CREATOR_CONTRACT);
+        
+        // Convert supply to BigNumber with 18 decimals
+        const initialSupply = ethers.utils.parseUnits(supply.toString(), 18);
+        console.log('Initial supply (in wei):', initialSupply.toString());
+
+        // Set higher gas price
+        const gasPrice = await provider.getGasPrice();
+        const adjustedGasPrice = gasPrice.mul(150).div(100); // Add 50%
+        console.log('Adjusted gas price:', ethers.utils.formatUnits(adjustedGasPrice, 'gwei'), 'gwei');
+
+        // Set high gas limit for deployment
+        const gasLimit = 5000000; // Set fixed high gas limit
+        console.log('Gas limit:', gasLimit);
+
+        console.log('Deploying token with params:', {
+            name: name.trim(),
+            symbol: symbol.trim().toUpperCase(),
+            supply: initialSupply.toString(),
+            gasLimit: gasLimit,
+            gasPrice: adjustedGasPrice.toString()
+        });
+
+        // Deploy token with prepared parameters
+        const tx = await creatorContract.deployToken(
+            name.trim(),
+            symbol.trim().toUpperCase(),
+            initialSupply,
+            {
+                gasLimit: gasLimit,
+                gasPrice: adjustedGasPrice
+            }
+        );
+
+        console.log('Transaction hash:', tx.hash);
+        showToast('Waiting for confirmation...', 'info');
+        
+        const receipt = await tx.wait();
+        console.log('Transaction receipt:', receipt);
+
+        // Get token address from event
+        const tokenCreatedEvent = receipt.events?.find(e => e.event === "TokenCreated");
+        const tokenAddress = tokenCreatedEvent?.args?.tokenAddress;
+        console.log('New token address:', tokenAddress);
+
+        // Show success modal
+        const successModal = document.querySelector('.transaction-success');
+        const details = `
+            <div class="success-icon">✓</div>
+            <h3>Token Created Successfully!</h3>
+            <div class="transaction-details">
+                <div>Token Name: ${name}</div>
+                <div>Token Symbol: ${symbol}</div>
+                <div>Total Supply: ${supply} ${symbol}</div>
+                <div>Token Address: ${tokenAddress}</div>
+                <div class="tx-hash">
+                    <a href="https://explorer-tea-assam-fo46m5b966.t.conduit.xyz/tx/${tx.hash}" 
+                       target="_blank" 
+                       rel="noopener noreferrer" 
+                       class="tx-hash-link">
+                        View on Explorer
+                    </a>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="close-modal">Close</button>
+            </div>
+        `;
+        
+        successModal.querySelector('.modal-content').innerHTML = details;
+        showModal(successModal);
+
+        // Reset form
+        document.getElementById('tokenName').value = '';
+        document.getElementById('tokenSymbol').value = '';
+        document.getElementById('tokenSupply').value = '';
+
+    } catch (error) {
+        console.error('Detailed error:', {
+            code: error.code,
+            message: error.message,
+            stack: error.stack,
+            data: error.data
+        });
+        
+        if (error.code === 4001) {
+            showToast('Transaction rejected by user', 'error');
+        } else if (error.message.includes('insufficient funds')) {
+            showToast('Insufficient TEA for gas fee', 'error');
+        } else {
+            showToast('Error creating token: ' + (error.reason || error.message), 'error');
+        }
+    } finally {
+        setLoading(createBtn, false);
+    }
+}
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('DOM Content Loaded'); // Debug log
+    console.log('DOM Content Loaded');
     
-    // Initialize Navigation
     initializeNavigation();
     
-    // Connect wallet button
     const connectBtn = document.querySelector('.connect-btn');
     if (connectBtn) {
-        console.log('Connect button found'); // Debug log
         connectBtn.addEventListener('click', async () => {
-            console.log('Connect button clicked'); // Debug log
             await connectWallet();
         });
-    } else {
-        console.error('Connect button not found!'); // Debug log
     }
     
-    // Add event listeners
     const fileInput = document.getElementById('fileInput');
     if (fileInput) {
         fileInput.addEventListener('change', handleFileUpload);
     }
     
-    // Add other button listeners
     const buttons = {
         'checkTransfer': checkToken,
         'processTransfer': processBatchTransfer,
-        'speedUpProcess': speedUpByTxHash  // Update ini
+        'speedUpProcess': speedUpByTxHash,
+        'processDonation': processDonation,
+        'createToken': createToken
     };
 
     for (const [id, handler] of Object.entries(buttons)) {
@@ -1090,7 +1194,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    // Modal close buttons
     document.querySelectorAll('.close-modal').forEach(btn => {
         btn.addEventListener('click', () => {
             const modal = btn.closest('.modal');
@@ -1098,7 +1201,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
     
-    // Modal overlay click
     const modalOverlay = document.querySelector('.modal-overlay');
     if (modalOverlay) {
         modalOverlay.addEventListener('click', () => {
@@ -1109,12 +1211,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// Check if already connected
+// Check if already connected and setup event listeners
 if (window.ethereum?.selectedAddress) {
     connectWallet();
 }
 
-// Listen for account changes
 if (window.ethereum) {
     ethereum.on('accountsChanged', async (accounts) => {
         if (accounts.length > 0) {
@@ -1135,30 +1236,7 @@ if (window.ethereum) {
     });
 }
 
-// Navigation Functions
-function initializeNavigation() {
-    document.querySelectorAll('[data-page]').forEach(button => {
-        button.addEventListener('click', (e) => {
-            e.preventDefault();
-            const targetPage = button.getAttribute('data-page');
-            if (targetPage) navigateToPage(targetPage);
-        });
-    });
-}
-
-function navigateToPage(pageId) {
-    document.querySelectorAll('.rectangle').forEach(page => {
-        page.classList.remove('active');
-    });
-    
-    const targetPage = document.getElementById(pageId);
-    if (targetPage) {
-        targetPage.classList.add('active');
-        window.scrollTo(0, 0);
-    }
-}
-
-// Form Validation Functions
+// Validation Functions
 function validateTokenAddress(address) {
     return ethers.utils.isAddress(address);
 }
@@ -1192,17 +1270,10 @@ function handleError(error, context = '') {
     
     if (error.code) {
         switch (error.code) {
-            case 4001:
-                message = 'Transaction rejected by user';
-                break;
-            case -32603:
-                message = 'Internal JSON-RPC error';
-                break;
-            case -32002:
-                message = 'Request already pending';
-                break;
-            default:
-                message = error.message || 'Unknown error occurred';
+            case 4001: message = 'Transaction rejected by user'; break;
+            case -32603: message = 'Internal JSON-RPC error'; break;
+            case -32002: message = 'Request already pending'; break;
+            default: message = error.message || 'Unknown error occurred';
         }
     }
     
@@ -1282,12 +1353,3 @@ async function checkTokenAllowance(tokenAddress, owner, spender) {
         throw error;
     }
 }
-
-// Initialize app when document is ready
-document.addEventListener('DOMContentLoaded', () => {
-    console.log('Initializing app...');
-    initializeNavigation();
-    if (window.ethereum?.selectedAddress) {
-        connectWallet();
-    }
-});

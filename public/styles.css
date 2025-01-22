@@ -3,7 +3,7 @@
     --primary-green: #98FF99;
     --primary-hover: #7adb7b;
     --background: #1E2124;
-    --surface: #23282E;
+    --surface:#23282e;
     --text-primary: #FFFFFF;
     --text-secondary: rgba(255, 255, 255, 0.7);
     --font-main: 'Poppins', sans-serif;
@@ -118,7 +118,8 @@ body {
     margin: 0 auto;
     display: flex;
     flex-direction: column;
-    gap: 34px;
+    gap: 20px;
+    padding: 0 20px;
 }
 
 .menu-item {
@@ -131,29 +132,33 @@ body {
     border-radius: 5px;
     font-family: var(--font-main);
     font-size: 16px;
-    font-weight: 400;
+    font-weight: 600;  /* Changed from 400 to 600 for bold */
     cursor: pointer;
     text-decoration: none;
-    transition: transform 0.2s ease;
-}
-
-.batch-btn {
-    background: #98FF99;
-    color: #24292F;
-}
-
-.speed-btn {
+    transition: all 0.2s ease;
     background: #ECECEC;
     color: #24292F;
 }
 
+.batch-btn,
+.speed-btn,
+.donation-btn,
+.creator-btn,
 .faucet-btn {
-    background: #8A8A8A;
-    color: #24292F;
+    background: #ECECEC;
+}
+
+.faucet-btn {
+    background: #7bc77d;
+}
+
+.faucet-btn:hover {
+    background: var(--primary-green);
 }
 
 .menu-item:hover {
     transform: translateY(-2px);
+    background: var(--primary-green);
 }
 
 /* Form Container */
@@ -389,11 +394,13 @@ input:focus, textarea:focus {
     transform: translateY(-1px);
 }
 
+.check-btn.loading,
 .speed-up-btn.loading {
     position: relative;
-    color: transparent;
+    color: transparent !important;
 }
 
+.check-btn.loading::after,
 .speed-up-btn.loading::after {
     content: '';
     position: absolute;
@@ -508,8 +515,8 @@ input:focus, textarea:focus {
 /* Toast Container */
 .toast-container {
     position: fixed;
-    top: 80px; /* Positioned below the connected wallet address */
-    right: 2rem;
+    top: 95px; /* Positioned below the connected wallet address */
+    right: 3rem;
     z-index: 1002;
     display: flex;
     flex-direction: column;
@@ -587,7 +594,7 @@ footer {
 }
 
 footer p {
-    font-size: 10px;
+    font-size: 14px;
     color: var(--text-secondary);
 }
 
@@ -1109,8 +1116,8 @@ footer p {
 
 /* Menu Styles */
 .select-menu {
-    font-size: 16px;
-    font-weight: 700;
+    font-size: 20px;
+    font-weight: 600;
     color: #FFFFFF;
     text-align: center;
     margin-bottom: 24px;
@@ -1147,24 +1154,5 @@ footer p {
     border-radius: 6px;
     text-decoration: none;
     font-weight: 600;
-    margin: 0 auto;
-}
-
-/* Make sure all menu items are centered */
-.menu-item {
-    width: 100%;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    border: none;
-    border-radius: 5px;
-    font-family: var(--font-main);
-    font-size: 16px;
-    font-weight: 400;
-    cursor: pointer;
-    text-decoration: none;
-    transition: transform 0.2s ease;
     margin: 0 auto;
 }
