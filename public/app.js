@@ -255,11 +255,9 @@ function showToast(message, type = 'info') {
         clearTimeout(toastTimeout);
     }
 
-    // Remove existing toasts with the same message
+    // Remove all existing toasts
     document.querySelectorAll('.toast').forEach(toast => {
-        if (toast.textContent === message) {
-            toast.remove();
-        }
+        toast.remove();
     });
 
     const toast = document.createElement('div');
@@ -271,7 +269,11 @@ function showToast(message, type = 'info') {
     
     toastTimeout = setTimeout(() => {
         toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
+        setTimeout(() => {
+            if (toast && toast.parentElement) {
+                toast.remove();
+            }
+        }, 300);
     }, 3000);
 }
 
@@ -523,18 +525,35 @@ async function getSafeNonce() {
     }
 }
 
+function setProcessButtonLoading(isLoading) {
+    const processBtn = document.querySelector('.process-btn');
+    if (processBtn) {
+        if (isLoading) {
+            processBtn.disabled = true;
+            processBtn.classList.add('loading');
+            processBtn.textContent = 'Processing...';
+        } else {
+            processBtn.disabled = false;
+            processBtn.classList.remove('loading');
+            processBtn.textContent = 'Process Now';
+        }
+    }
+}
+
 async function processBatchTransfer() {
     if (!connectedWallet) {
         showToast('Please connect wallet first', 'error');
         return;
     }
- 
+
     const tokenAddress = document.getElementById('tokenAddress').value;
     const amount = document.getElementById('sendAmount').value;
     const addresses = document.getElementById('addressList').value
         .split('\n')
         .map(addr => addr.trim())
         .filter(addr => ethers.utils.isAddress(addr));
+
+    const BATCH_SIZE = 100; // Optimal batch size
     
     try {
         setProcessButtonLoading(true);
@@ -553,151 +572,119 @@ async function processBatchTransfer() {
             showToast('No valid addresses found', 'error');
             return;
         }
-        
+
         const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, signer);
         const batchContract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
         
-        try {
-            const [decimals, symbol, name] = await Promise.all([
-                tokenContract.decimals(),
-                tokenContract.symbol(),
-                tokenContract.name()
-            ]);
-            
-            const amountWithDecimals = ethers.utils.parseUnits(amount.toString(), decimals);
-            const totalAmount = amountWithDecimals.mul(addresses.length);
- 
-            // Get current transaction count (nonce) for latest and pending
-            const [latestNonce, pendingNonce] = await Promise.all([
-                provider.getTransactionCount(connectedWallet, "latest"),
-                provider.getTransactionCount(connectedWallet, "pending")
-            ]);
- 
-            // Use the higher nonce to ensure transaction order
-            const safeNonce = pendingNonce > latestNonce ? pendingNonce : latestNonce;
-            
-            // Set base gas price
-            const baseGasPrice = ethers.utils.parseUnits('150', 'gwei');
-            let gasPrice = baseGasPrice;
- 
-            // Increase gas price if there are pending transactions
-            if (pendingNonce > latestNonce) {
-                gasPrice = baseGasPrice.mul(3); // 3x if pending exists
-            }
- 
-            // Check user's token balance
-            const balance = await tokenContract.balanceOf(connectedWallet);
-            if (balance.lt(totalAmount)) {
-                showToast(`Insufficient ${symbol} balance`, 'error');
+        const [decimals, symbol, name] = await Promise.all([
+            tokenContract.decimals(),
+            tokenContract.symbol(),
+            tokenContract.name()
+        ]);
+        
+        const amountWithDecimals = ethers.utils.parseUnits(amount.toString(), decimals);
+        const totalAmount = amountWithDecimals.mul(addresses.length);
+
+        // Check user's token balance
+        const balance = await tokenContract.balanceOf(connectedWallet);
+        if (balance.lt(totalAmount)) {
+            showToast(`Insufficient ${symbol} balance`, 'error');
+            return;
+        }
+        
+        // Check and approve allowance
+        const allowance = await tokenContract.allowance(connectedWallet, CONTRACT_ADDRESS);
+        if (allowance.lt(totalAmount)) {
+            showToast(`Approving ${symbol} token transfer...`, 'info');
+            try {
+                const approveTx = await tokenContract.approve(CONTRACT_ADDRESS, totalAmount);
+                await approveTx.wait();
+                showToast('Token approval successful', 'success');
+            } catch (approveError) {
+                handleError(approveError);
                 return;
             }
-            
-            // Check allowance with higher gas price
-            const allowance = await tokenContract.allowance(connectedWallet, CONTRACT_ADDRESS);
-            if (allowance.lt(totalAmount)) {
-                showToast(`Approving ${symbol} token transfer...`, 'info');
-                try {
-                    const approveTx = await tokenContract.approve(CONTRACT_ADDRESS, totalAmount, {
-                        gasPrice: gasPrice,
-                        nonce: safeNonce,
-                        gasLimit: ethers.utils.hexlify(500000) // Fixed high gas limit for approvals
-                    });
-                    const approveReceipt = await approveTx.wait();
-                    showToast('Token approval successful', 'success');
-                } catch (approveError) {
-                    if (approveError.code === 4001) {
-                        showToast('Token approval rejected', 'error');
-                    } else {
-                        showToast('Error approving token', 'error');
+        }
+
+        // Split addresses into smaller batches
+        const batches = [];
+        for (let i = 0; i < addresses.length; i += BATCH_SIZE) {
+            batches.push(addresses.slice(i, i + BATCH_SIZE));
+        }
+
+        let successCount = 0;
+        for (let i = 0; i < batches.length; i++) {
+            const batchAddresses = batches[i];
+            const batchAmounts = Array(batchAddresses.length).fill(amountWithDecimals);
+
+            try {
+                showToast(`Processing batch ${i + 1} of ${batches.length}...`, 'info');
+                
+                const gasLimit = await batchContract.estimateGas.batchTransfer(
+                    tokenAddress,
+                    batchAddresses,
+                    batchAmounts
+                );
+
+                const tx = await batchContract.batchTransfer(
+                    tokenAddress,
+                    batchAddresses,
+                    batchAmounts,
+                    {
+                        gasLimit: gasLimit.mul(130).div(100) // 30% buffer
                     }
-                    console.error('Approve error:', approveError);
-                    return;
-                }
+                );
+
+                await tx.wait();
+                successCount += batchAddresses.length;
+                showToast(`Batch ${i + 1} completed successfully`, 'success');
+            } catch (error) {
+                console.error(`Error in batch ${i + 1}:`, error);
+                showToast(`Error in batch ${i + 1}: ${error.message}`, 'error');
+                break;
             }
-            
-            // Get next nonce after approval
-            const transferNonce = await provider.getTransactionCount(connectedWallet, "latest");
-            
-            // Check if user has enough TEA for gas
-            const gasLimit = await batchContract.estimateGas.batchTransfer(
-                tokenAddress,
-                addresses,
-                Array(addresses.length).fill(amountWithDecimals)
-            );
-            const gasCost = gasLimit.mul(gasPrice);
-            const ethBalance = await provider.getBalance(connectedWallet);
-            
-            if (ethBalance.lt(gasCost)) {
-                showToast('Insufficient TEA for gas fee', 'error');
-                return;
-            }
-            
-            // Batch transfer with optimized gas settings
-            showToast('Processing transfer...', 'info');
-            const tx = await batchContract.batchTransfer(
-                tokenAddress,
-                addresses,
-                Array(addresses.length).fill(amountWithDecimals),
-                {
-                    gasPrice: gasPrice,
-                    gasLimit: gasLimit.mul(130).div(100), // 30% buffer
-                    nonce: transferNonce
-                }
-            );
-            
-            showToast('Waiting for transaction confirmation...', 'info');
-            const receipt = await tx.wait();
-            
-            // Show success modal with explorer link
-            const successModal = document.querySelector('.transaction-success');
-            const details = `
-                <div class="success-icon">✓</div>
-                <h3>Transfer Successful!</h3>
-                <div class="transaction-details">
-                    <div>Successfully sent ${amount} ${symbol} to ${addresses.length} addresses</div>
-                    <div class="tx-hash">
-                        <a href="https://explorer-tea-assam-fo46m5b966.t.conduit.xyz/tx/${tx.hash}" 
-                           target="_blank" 
-                           rel="noopener noreferrer" 
-                           class="tx-hash-link">
-                            ${tx.hash}
-                        </a>
-                    </div>
-                </div>
-                <div class="modal-actions">
-                    <button class="close-modal">Close</button>
-                </div>
-            `;
-            
-            successModal.querySelector('.modal-content').innerHTML = details;
-            showModal(successModal);
-            
-            // Reset form
+        }
+
+        // Hide check modal before showing success modal
+        const checkModal = document.querySelector('.check-result-modal');
+        if (checkModal) {
+            hideModal(checkModal);
+        }
+
+        // Show success modal
+        const successModal = document.querySelector('.transaction-success');
+        const details = `
+            <div class="success-icon">✓</div>
+            <h3>Transfer Summary</h3>
+            <div class="transaction-details">
+                <div>Successfully sent to ${successCount} of ${addresses.length} addresses</div>
+                <div>Amount per address: ${amount} ${symbol}</div>
+                <div>Total amount sent: ${successCount * parseFloat(amount)} ${symbol}</div>
+            </div>
+            <div class="modal-actions">
+                <button class="close-modal">Close</button>
+            </div>
+        `;
+        
+        successModal.querySelector('.modal-content').innerHTML = details;
+        showModal(successModal);
+
+        // Reset form if all successful
+        if (successCount === addresses.length) {
             document.getElementById('tokenAddress').value = '';
             document.getElementById('sendAmount').value = '';
             document.getElementById('addressList').value = '';
-            
-        } catch (error) {
-            console.error('Contract interaction error:', error);
-            if (error.code === 4001) {
-                showToast('Transaction rejected by user', 'error');
-            } else if (error.message && error.message.includes('insufficient funds')) {
-                showToast('Insufficient funds for gas', 'error');
-            } else {
-                showToast(error.message || 'Error processing transfer', 'error');
-            }
         }
-        
+
     } catch (error) {
         console.error('Error in batch transfer:', error);
-        showToast(error.message || 'Error processing batch transfer', 'error');
+        handleError(error);
     } finally {
         setProcessButtonLoading(false);
-        hideModal(document.querySelector('.check-result-modal'));
     }
- }
+}
 
- async function checkToken() {
+async function checkToken() {
     if (!connectedWallet) {
         showToast('Please connect wallet first', 'error');
         return;
@@ -714,7 +701,18 @@ async function processBatchTransfer() {
     const processBtn = modal.querySelector('.process-btn');
     
     if (!ethers.utils.isAddress(tokenAddress)) {
-        showToast('Please enter a valid token address', 'error');
+        const errorContent = `
+            <h3>Transfer Details</h3>
+            <div class="error-message">
+                <p>Error loading token information</p>
+                <p class="details">Please verify the token address and try again</p>
+            </div>
+            <div class="modal-actions">
+                <button class="close-modal">Close</button>
+            </div>
+        `;
+        modal.querySelector('.modal-content').innerHTML = errorContent;
+        showModal(modal);
         return;
     }
 
@@ -782,6 +780,7 @@ async function processBatchTransfer() {
         modal.querySelector('.modal-content').innerHTML = errorContent;
     }
 }
+
 async function speedUpByTxHash() {
     if (!connectedWallet) {
         showToast('Please connect wallet first', 'error');
