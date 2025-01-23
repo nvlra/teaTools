@@ -249,15 +249,16 @@ const CREATOR_ABI = [
     }
 ];
 
-// Utility Functions
 function showToast(message, type = 'info') {
     if (toastTimeout) {
         clearTimeout(toastTimeout);
     }
 
-    // Remove all existing toasts
+    // Remove existing toasts with the same message
     document.querySelectorAll('.toast').forEach(toast => {
-        toast.remove();
+        if (toast.textContent === message) {
+            toast.remove();
+        }
     });
 
     const toast = document.createElement('div');
@@ -269,11 +270,7 @@ function showToast(message, type = 'info') {
     
     toastTimeout = setTimeout(() => {
         toast.style.opacity = '0';
-        setTimeout(() => {
-            if (toast && toast.parentElement) {
-                toast.remove();
-            }
-        }, 300);
+        setTimeout(() => toast.remove(), 300);
     }, 3000);
 }
 
